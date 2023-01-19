@@ -1,0 +1,116 @@
+---
+title: "school-crosscheck"
+author: "Shreya Vuttaluru"
+date: "2023-01-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+### load libraries
+source("../../functions/load_libraries_function.R")
+
+### stealing functions 
+
+#does a standard group_by and count() with percentage
+grouper <- function(input_df, group_by_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = n()) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+}
+
+#group/counts every column in input dataframe
+group_count <- function(input_df, group_column_name='n()', state_filter=NA, start_col = 1){
+  column_names <- colnames(input_df)
+  if(!is.na(state_filter)){
+    input_df <- input_df %>%
+      filter(state == state_filter)
+  }
+  for (column in column_names[start_col:length(column_names)]){
+    output <- grouper(input_df, column, group_column_name)
+    print(output)
+  }
+}
+
+grouper_sum <- function(input_df, group_by_column, sum_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = sum(.data[[sum_column]])) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+  
+}
+
+#lowers case of every character column in a dataframe
+lower_df <- function(input_df){
+  names <- colnames(input_df)
+  output_df <- input_df
+  names <- colnames(output_df)
+  for (name in names){
+    if (is.character(output_df[[name]])){
+      output_df[[name]] <- tolower(output_df[[name]])
+      #print('yes')
+    } else {
+      output_df[[name]] <- output_df[[name]]
+      #print('no')
+    }
+  }
+  return(output_df)
+}
+
+```
+
+# Joining lat/longs in schools list to parcel database, then filtering out where no school name shows up. 
+```{r}
+
+school_list <- read_csv("data/schoollist.csv") %>% 
+  clean_names() %>%
+  lower_df() %>%
+  ## manually editing one longitude
+  mutate(
+    address_longitude = case_when(address_longitude == "--76.559637" ~	"-76.559637",
+                                  TRUE ~ as.character(address_longitude))
+  ) 
+
+high_school_list <- school_list %>%
+  filter(str_detect(official_state_grade_band, "high"))
+
+### make school list spatial 
+hs_spatial_school_list <- high_school_list %>%
+  st_as_sf(coords = c("address_longitude", "address_latitude"),
+                        crs = 4326)
+  
+parcels <- st_read("../../no_push_data/Real_Property_Information/Real_Property_Information.shp") %>%
+  st_transform(crs = 4326) %>%
+  clean_names() %>%
+  lower_df()
+
+test <- parcels %>%
+  filter(fulladdr == "100 harborview dr")
+
+mapview(parcels)
+
+### this makes join work for some reason
+sf_use_s2(FALSE)
+
+### check for if school_geoms are in parcel. 
+schools_with_parcels <- parcels %>%
+    st_join(hs_spatial_school_list) 
+
+hs_parcels <- schools_with_parcels %>%
+  select(school_number, school_name, address, fulladdr) %>%
+  drop_na(school_name) %>%
+  distinct(school_number, .keep_all = TRUE)
+
+mapview(hs_parcels) + mapview(hs_spatial_school_list, cex = 2, color = "red")
+
+
+
+```
