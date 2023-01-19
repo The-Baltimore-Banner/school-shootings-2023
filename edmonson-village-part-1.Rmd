@@ -1,0 +1,625 @@
+---
+title: "edmonson-village-part-1"
+output: html_document
+date: "2023-01-05"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readr)
+library(janitor)
+library(lubridate)
+library(sf)
+library(mapview)
+library(RColorBrewer)
+options(digits=3)
+options(scipen=999)
+'%notin%' <- Negate('%in%')
+
+#does a standard group_by and count() with percentage
+grouper <- function(input_df, group_by_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = n()) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+}
+
+#group/counts every column in input dataframe
+group_count <- function(input_df, group_column_name='n()', state_filter=NA, start_col = 1){
+  column_names <- colnames(input_df)
+  if(!is.na(state_filter)){
+    input_df <- input_df %>%
+      filter(state == state_filter)
+  }
+  for (column in column_names[start_col:length(column_names)]){
+    output <- grouper(input_df, column, group_column_name)
+    print(output)
+  }
+}
+
+grouper_sum <- function(input_df, group_by_column, sum_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = sum(.data[[sum_column]])) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+  
+}
+
+#lowers case of every character column in a dataframe
+lower_df <- function(input_df){
+  names <- colnames(input_df)
+  output_df <- input_df
+  names <- colnames(output_df)
+  for (name in names){
+    if (is.character(output_df[[name]])){
+      output_df[[name]] <- tolower(output_df[[name]])
+      #print('yes')
+    } else {
+      output_df[[name]] <- output_df[[name]]
+      #print('no')
+    }
+  }
+  return(output_df)
+}
+
+
+
+"Because the Census estimates are not exact counts, there is some uncertainty in the analysis. The data is published with rolling 5-year estimates that include a margin of error. To account for these possibilities, we have to calculate a minimum population, an average population and a maximum population. If the margin of error was significantly larger in a given district, it’s possible that district could have a minimum population loss but a maximum population gain. "
+
+```
+
+```{r}
+
+parcels <- read_sf('/Users/ryanlittle/code/data-library/baltimore/baltimore-shapes/Real_Property_Information/Real_Property_Information.shp')
+
+victims <- read_csv('data/Part_1_Crime_Data_.csv') %>%
+  #cleaning column names
+  clean_names() %>%
+  #lowering text in df
+  lower_df() %>%
+  #converting to lubridate
+  mutate(crime_date_time = ymd_hms(crime_date_time))  %>%
+  #making year month hour columns
+  mutate(year = year(crime_date_time),
+         month = month(crime_date_time),
+         hour = hour(crime_date_time),
+         date = as_date(crime_date_time, 'day')) %>%
+  #removing lat/long because there are multiples and ethnicity because it is unreliable and uneccesary for weekend count analysis
+  select(-x, -y, -row_id, -latitude, -longitude, -ethnicity) %>%#, -shape) %>%
+  #filtering for year
+  #filter(year >= 2011) %>%
+  #splitting geo location
+  separate(geo_location, c("latitude", "longitude"), ',') %>%
+  #removing parenthesis
+  mutate(latitude = gsub('\\(', '', latitude),
+         longitude = gsub('\\)', '', longitude)) %>%
+  mutate(age = case_when(
+    age > 0 & age < 100 ~ age,
+    TRUE ~ NA_real_
+  )) %>%
+  mutate(age_range = case_when(
+    age < 18 & age > 0 ~ "juvenile",
+    age >= 18 & age <= 25 ~ "18 to 25",
+    age >= 26 & age <= 34 ~ "26 to 34",
+    age >= 35 & age <= 50 ~ "35 to 50",
+    age > 50 & age < 75 ~ "51 to 74",
+    age >= 75 & age < 85 ~ "75 to 84",
+    age >= 85 ~ "85 to 100",
+    TRUE ~ "NA"
+  )) %>%
+  mutate(time_range = case_when(
+    hour <= 3 ~ "early morning",
+    hour < 12 & hour > 3 ~ "morning",
+    hour >= 12 & hour < 15 ~ "early afternoon",
+    hour >= 13 & hour < 17 ~ "after school",
+    hour >= 17 & hour < 20 ~ "evening",
+    hour >= 20 ~ "night"
+  ))  %>%
+  ###############
+  ###############
+  mutate(during_school = case_when(
+    hour >= 7 & hour <= 15 ~ TRUE,
+    TRUE ~ FALSE
+  )) %>%
+  mutate(around_lunch = case_when(
+    hour >= 10 & hour <= 1 ~ TRUE,
+    TRUE ~ FALSE
+  )) %>%
+  ###############
+  ###############
+  mutate(quarter = case_when(
+    month %in% c(1,2,3) ~ 1,
+    month %in% c(4,5,6) ~ 2,
+    month %in% c(7,8,9) ~ 3,
+    month %in% c(10,11,12) ~ 4
+  )) %>%
+  mutate(quarter_date = case_when(
+    quarter == 1 ~ ymd(paste0(year, "-3-31")),
+    quarter == 2 ~ ymd(paste0(year, "-6-30")),
+    quarter == 3 ~ ymd(paste0(year, "-9-30")),
+    quarter == 4 ~ ymd(paste0(year, "-12-31"))
+  )) %>%
+  filter(year >= 2015)
+  
+crimes <- victims %>%
+  #filter(description %in% c("shooting", "homicide"),
+  #       weapon == "firearm") %>%
+  #mutating database of victims to database of distinct crimes
+  group_by(crime_date_time, location, district, neighborhood, description, weapon, premise, year, month, date, time_range, during_school, around_lunch, quarter, longitude, latitude) %>%
+  summarise(victims = n(),
+            average_age = mean(age, na.rm = TRUE),
+            juvenile_victims = sum(age_range == "juvenile")) %>%
+  filter(longitude != "",
+         latitude != "") %>%
+  st_as_sf(coords = c("longitude", "latitude"),
+                 crs = 4326,#4269, 
+                 remove = FALSE)
+
+crimes$id <- seq.int(nrow(crimes))
+
+```
+
+```{r}
+
+glimpse(victims)
+
+grouper(victims, "Description")
+
+c("COMMON ASAULT", "AGG. ASSAULT", "")
+```
+
+```{r}
+
+victims %>%
+  filter(str_detect(description, "robbery")) %>%
+  group_by(weapon) %>%
+  count()
+
+```
+
+
+```{r}
+
+near_shp <- function(input_points, input_shape, blocks){
+  
+  pal <-  mapviewPalette("mapviewSpectralColors")
+  
+  distance <- blocks*100+50  
+
+near_shape <- as.data.frame(st_is_within_distance(input_points, input_shape, dist = distance, sparse = FALSE)) %>%
+  clean_names() %>%
+  mutate(within = case_when(
+     v1 == TRUE ~ TRUE,
+     TRUE ~ FALSE
+  )) %>%
+  select(within)
+
+  near_shape <- input_points %>%
+    cbind(near_shape$within) %>%
+    clean_names() %>%
+    filter(near_shape_within == TRUE)
+  
+  near_shape_during_school <- near_shape %>%
+    filter(during_school == TRUE)
+  
+  near_shape_2022 <- near_shape %>%
+    filter(year == 2022)
+  
+  map <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape_2022$geometry,
+            cex = near_shape_2022$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+  
+  map2 <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape_during_school$geometry,
+            cex = near_shape_during_school$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+    
+  near_shape_by_year <- near_shape %>%
+    as.data.frame() %>%
+    #mutate(year_month = mdy(paste0(month, "-1-", year))) %>%
+    group_by(year) %>%
+    summarise(crimes = n(),
+              victims = sum(victims))
+  
+  plot <- ggplot(near_shape_by_year, aes(x=year, y=crimes)) +
+    geom_line() +
+    ggtitle(paste0("Points within ", blocks, " block(s) of shape"))
+  
+  print(map)
+  print(map2)
+  print(plot)
+  print(near_shape_by_year %>%
+            mutate(blocks = paste0(blocks)) %>%
+            select(blocks, crimes, year) %>%
+            pivot_wider(values_from = crimes, names_from = year))
+  print(near_shape %>%
+          group_by(year, description) %>%
+          count() %>%
+          ungroup() %>%
+          as.data.frame() %>%
+          select(-geometry)  %>%
+          pivot_wider(values_from = n, names_from = year) %>%
+          mutate(blocks = paste0(blocks)) %>%
+          relocate(blocks) %>%
+          clean_names() %>%
+          arrange(desc(x2022))
+        )
+    print(near_shape %>%
+          group_by(year, time_range) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, during_school) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, around_lunch) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          as.data.frame() %>%
+          arrange(desc(crime_date_time)))
+}
+
+```
+
+### EDMONSON VILLAGE
+
+```{r}
+
+edmonson_village_shopping_center <- parcels %>%
+  filter(NEIGHBOR == "ROGNEL HEIGHTS") %>%
+  filter(OBJECTID == "229815")
+
+mapview(edmonson_village_shopping_center)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 1)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 2)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 3)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 5)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 10)
+
+```
+
+```{r}
+
+near_shp(crimes, edmonson_village_shopping_center, 20)
+
+```
+
+# NEARBY NEIGHBORHOODS
+
+```{r}
+
+temp <- crimes %>%
+  filter(neighborhood %in% c("uplands", "allendale", "edmondson village")) %>%
+  group_by(year) %>%
+  count() %>%
+  as.data.frame() %>%
+  select(-geometry) 
+
+temp %>%
+  pivot_wider(values_from = n, names_from = year)
+
+```
+
+```{r}
+ 
+ggplot(temp, aes(x=year, y=n)) +
+    geom_line() +
+    ggtitle(paste0("test"))
+
+```
+
+
+# CITYWIDE
+
+```{r}
+
+temp <- crimes %>%
+  #filter(neighborhood %in% c("uplands", "allendale", "edmondson village")) %>%
+  group_by(year) %>%
+  count() %>%
+  as.data.frame() %>%
+  select(-geometry) 
+
+temp %>%
+  pivot_wider(values_from = n, names_from = year)
+
+```
+
+```{r}
+ 
+ggplot(temp, aes(x=year, y=n)) +
+    geom_line() +
+    ggtitle(paste0("test"))
+
+```
+
+#EDMONSON-WESTSIDE HIGH SCHOOL
+
+```{r}
+
+temp <- parcels %>%
+  filter(NEIGHBOR %in% c("UPLANDS", "ALLENDALE"))
+
+mapview(temp)
+
+```
+
+```{r}
+
+edmonson_westside_high_school <- temp %>%
+  filter(OBJECTID %in% c("93722", "93724"))
+
+near_school <- function(input_points, input_shape, blocks){
+  
+  pal <-  mapviewPalette("mapviewSpectralColors")
+  
+  distance <- blocks*100+50  
+
+near_shape <- as.data.frame(st_is_within_distance(input_points, input_shape, dist = distance, sparse = FALSE)) %>%
+  clean_names() %>%
+  mutate(within = case_when(
+     v1 == TRUE ~ TRUE,
+     v2 == TRUE ~ TRUE,
+     TRUE ~ FALSE
+  )) %>%
+  select(within)
+
+  near_shape <- input_points %>%
+    cbind(near_shape$within) %>%
+    clean_names() %>%
+    filter(near_shape_within == TRUE)
+  
+  near_shape_during_school <- near_shape %>%
+    filter(during_school == TRUE)
+  
+  map <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape$geometry,
+            cex = near_shape$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+  
+  map2 <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape_during_school$geometry,
+            cex = near_shape_during_school$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+    
+  near_shape_by_year <- near_shape %>%
+    as.data.frame() %>%
+    #mutate(year_month = mdy(paste0(month, "-1-", year))) %>%
+    group_by(year) %>%
+    summarise(crimes = n(),
+              victims = sum(victims))
+  
+  plot <- ggplot(near_shape_by_year, aes(x=year, y=crimes)) +
+    geom_line() +
+    ggtitle(paste0("Points within ", blocks, " block(s) of shape"))
+  
+  print(map)
+  print(map2)
+  print(plot)
+  print(near_shape_by_year %>%
+          mutate(blocks = paste0(blocks)) %>%
+          select(blocks, crimes, year) %>%
+          pivot_wider(values_from = crimes, names_from = year))
+    print(near_shape %>%
+          group_by(year, time_range) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, during_school) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, around_lunch) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          as.data.frame() %>%
+          arrange(desc(crime_date_time)))
+}
+
+near_school(crimes, edmonson_westside_high_school, 2)
+
+```
+
+
+
+
+```{r}
+
+mapview(parcels %>%
+  filter(str_detect(PROPDESC, "SCHOOL #226")) %>%
+  select(PROPDESC))
+
+```
+
+
+
+### FOR PUBLISH
+
+```{r}
+
+input_points <- crimes
+
+input_shape <- edmonson_village_shopping_center
+
+blocks <- 2
+
+  pal <-  mapviewPalette("mapviewSpectralColors")
+  
+  distance <- blocks*100+50  
+
+near_shape <- as.data.frame(st_is_within_distance(input_points, input_shape, dist = distance, sparse = FALSE)) %>%
+  clean_names() %>%
+  mutate(within = case_when(
+     v1 == TRUE ~ TRUE,
+     TRUE ~ FALSE
+  )) %>%
+  select(within)
+
+  near_shape <- input_points %>%
+    cbind(near_shape$within) %>%
+    clean_names() %>%
+    filter(near_shape_within == TRUE)
+  
+  near_shape_during_school <- near_shape %>%
+    filter(during_school == TRUE)
+  
+  near_shape_2022 <- near_shape %>%
+    filter(year == 2022)
+  
+  map <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape_2022$geometry,
+            cex = near_shape_2022$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+  
+  map2 <- mapView(input_shape$geometry, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Gilmore Homes") + 
+    mapview(near_shape_during_school$geometry,
+            cex = near_shape_during_school$victims*2.5, 
+              legend = TRUE, 
+              col.regions = pal(100), 
+              layer.name = "Shooting victims")
+    
+  near_shape_by_year <- near_shape %>%
+    as.data.frame() %>%
+    #mutate(year_month = mdy(paste0(month, "-1-", year))) %>%
+    group_by(year) %>%
+    summarise(crimes = n(),
+              victims = sum(victims))
+  
+  plot <- ggplot(near_shape_by_year, aes(x=year, y=crimes)) +
+    geom_line() +
+    ggtitle(paste0("Points within ", blocks, " block(s) of shape"))
+  
+  print(map)
+  print(map2)
+  print(plot)
+  print(near_shape_by_year %>%
+            mutate(blocks = paste0(blocks)) %>%
+            select(blocks, crimes, year) %>%
+            pivot_wider(values_from = crimes, names_from = year))
+  print(near_shape %>%
+          group_by(year, description) %>%
+          count() %>%
+          ungroup() %>%
+          as.data.frame() %>%
+          select(-geometry)  %>%
+          pivot_wider(values_from = n, names_from = year) %>%
+          mutate(blocks = paste0(blocks)) %>%
+          relocate(blocks) %>%
+          clean_names() %>%
+          arrange(desc(x2022))
+        )
+    print(near_shape %>%
+          group_by(year, time_range) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, during_school) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          group_by(year, around_lunch) %>%
+          count() %>%
+          as.data.frame() %>%
+          select(-geometry) %>%
+          pivot_wider(names_from = year, values_from = n))
+  print(near_shape %>%
+          as.data.frame() %>%
+          arrange(desc(crime_date_time)))
+
+
+library(rgdal)
+  
+
+crimes <- grouper(near_shape_2022, "description")$description
+
+for (crime in crimes){
+  
+  temp <- near_shape_2022 %>%
+    filter(description == crime)
+  
+  write_sf(temp, paste0("data/output/shapefiles/edmondson-village-crimes-2022-", crime, ".shp"))
+  
+}
+    
+write_sf(near_shape_2022, "data/output/shapefiles/edmondson-village-crimes-2022.shp")
+
+test <- st_as_sf(near_shape_2022) %>%
+  mutate(color = case_when(
+    
+    description == "" ~ "",
+    description == "" ~ "",
+    description == "" ~ "",
+    description == "" ~ "",
+    description == "" ~ "",
+    description == "" ~ ""
+    
+  ))
+
+st_write(test, "data/output/shapefiles/edmondson-village-crimes-2022.geojson")
+
+```
+
