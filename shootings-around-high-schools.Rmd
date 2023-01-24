@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readr)
+library(lwgeom)
 library(janitor)
 library(lubridate)
 library(sf)
@@ -79,9 +80,9 @@ lower_df <- function(input_df){
 
 ```{r}
 
-
-
-parcels <- read_sf('/Users/ryanlittle/code/data-library/baltimore/baltimore-shapes/Real_Property_Information/Real_Property_Information.shp') %>%
+## need to change this filepath when reading in the future
+parcels <- st_read("../../no_push_data/Real_Property_Information/Real_Property_Information.shp") %>%
+  st_transform(crs = 4326) %>%
   clean_names() %>%
   lower_df()
 
@@ -154,7 +155,7 @@ victims <- read_csv('data/Part_1_Crime_Data_.csv') %>%
   )) %>%
   filter(year >= 2015)
   
-crimes <- victims %>%
+shootings <- victims %>%
   #filter(description %in% c("shooting", "homicide"),
   #       weapon == "firearm") %>%
   #mutating database of victims to database of distinct crimes
@@ -168,7 +169,7 @@ crimes <- victims %>%
                  crs = 4326,#4269, 
                  remove = FALSE)
 
-crimes$id <- seq.int(nrow(crimes))
+shootings$id <- seq.int(nrow(shootings))
 
 schools <- read_csv("data/Schoollist.csv") %>% 
   clean_names() %>%
@@ -285,7 +286,6 @@ st_crs(high_schools)
 
 # ANALYZE SHOOTINGS WITH X BLOCKS
 
-
 ```{r}
 
 for (parcel in high_school_parcels$geometry){
@@ -362,4 +362,4 @@ near_school(1, high_school_parcels$geometry[1])
 
 ```
 
-
+```
