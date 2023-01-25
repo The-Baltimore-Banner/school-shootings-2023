@@ -79,10 +79,20 @@ school_list <- read_csv("data/schoollist.csv") %>%
                                   TRUE ~ as.character(address_longitude))
   ) 
 
+## high schools + making spatial object
 hs_spatial_school_list <- school_list %>%
   filter(str_detect(official_state_grade_band, "high")) %>%
   st_as_sf(coords = c("address_longitude", "address_latitude"),
-                        crs = 4326)
+                        crs = 4326) %>%
+  ## putting filter up here for schools we don't care about
+  filter(
+    school_number != 875,
+    school_number != 877,
+    school_number != 878,
+    school_number != 884,
+    school_number != 897
+  )
+
   
 parcels <- st_read("../../no_push_data/Real_Property_Information/Real_Property_Information.shp") %>%
   st_transform(crs = 4326) %>%
@@ -117,6 +127,15 @@ final_hs_parcels <- hs_parcels %>%
     school_number != 897
   )
 
+## some duplicate parcels here, so distincting based on parcel address duplicates columnn (full_addr)
+final_hs_parcels <- final_hs_parcels %>%
+  group_by(fulladdr) %>%
+  mutate(
+    schools_at_parcel = n()
+  ) %>%
+  distinct(fulladdr, .keep_all = TRUE)
+  
+#sanity check 
 mapview(final_hs_parcels) + mapview(hs_spatial_school_list, cex = 2, color = "red")
 
 write_rds(final_hs_parcels, "data/final_hs_parcels.rds")
@@ -230,8 +249,6 @@ near_schools <- function(blocks, school_shape){
   
   school_shape <- final_hs_parcels
   
-  #blocks <- 2
-  
   blocks <- blocks
   
   distance <- blocks*100+50  
@@ -270,12 +287,6 @@ near_school <- as.data.frame(st_is_within_distance(shootings, school_shape, dist
      v29 == TRUE ~ TRUE,
      v30 == TRUE ~ TRUE,
      v31 == TRUE ~ TRUE,
-     v32 == TRUE ~ TRUE,
-     v33 == TRUE ~ TRUE,
-     v34 == TRUE ~ TRUE,
-     v35 == TRUE ~ TRUE,
-     v36 == TRUE ~ TRUE,
-     v37 == TRUE ~ TRUE,
      TRUE ~ FALSE
   )) %>%
   select(within)
@@ -286,6 +297,9 @@ near_school <- shootings %>%
   filter(near_school_within == TRUE) %>%
   filter(during_school == "TRUE") %>%
   filter(juvenile_victims > 0) %>%
+  filter(description == "shooting" | 
+         description == "homicide") %>%
+  filter(weapon == "firearm") %>%
   as.data.frame()
   
   map <- mapView(school_shape$geometry) +#, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Western District") + 
@@ -294,6 +308,8 @@ near_school <- shootings %>%
           legend = TRUE, 
           col.regions = pal(100), 
           layer.name = "Shooting victims")
+  
+  map
   
   near_school_by_year <- near_school %>%
     as.data.frame() %>%
@@ -304,7 +320,7 @@ near_school <- shootings %>%
   
   plot <- ggplot(near_school_by_year, aes(x=year, y=shootings)) +
     geom_line() +
-    ggtitle(paste0("shootings within ", blocks, " block(s) of 23 high schools during school hours"))
+    ggtitle(paste0("shootings within ", blocks, " block(s) of 31 high schools during school hours"))
   
   print(map)
   print(plot)
@@ -315,7 +331,7 @@ near_school <- shootings %>%
 
 }
 
-near_schools(1, high_school_parcels$geometry[1])
+near_schools(3, final_hs_parcels$geometry[3])
 
 
 ```
