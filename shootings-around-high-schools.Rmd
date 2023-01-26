@@ -299,6 +299,8 @@ for (parcel in high_school_parcels$geometry){
 ```{r}
 
 near_school <- function(blocks, school_shape){
+  
+  blocks <- blocks
 
   distance <- blocks*100+50  
 

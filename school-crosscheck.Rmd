@@ -70,6 +70,15 @@ lower_df <- function(input_df){
 # Joining lat/longs in schools list to parcel database, then filtering out where no school name shows up. 
 ```{r}
 
+
+### neighborhood shapefiles for map later
+neighborhoods <- st_read("../shapefiles/Maryland_Baltimore_City_Neighborhoods/Maryland_Baltimore_City_Neighborhoods.shp") %>%
+  st_transform(crs = 4326) %>%
+  clean_names() %>%
+  rename( 
+    neighborhood = label)
+
+
 school_list <- read_csv("data/schoollist.csv") %>% 
   clean_names() %>%
   lower_df() %>%
@@ -191,8 +200,8 @@ victims <- read_csv('data/Part_1_Crime_Data_.csv') %>%
   ))  %>%
   ###############
   ###############
-  mutate(during_school = case_when(
-    hour >= 7 & hour <= 15 ~ TRUE,
+  mutate(during_or_just_after_school = case_when(
+    hour >= 7 & hour <= 18 ~ TRUE,
     TRUE ~ FALSE
   )) %>%
   mutate(around_lunch = case_when(
@@ -219,7 +228,7 @@ shootings <- victims %>%
   #filter(description %in% c("shooting", "homicide"),
   #       weapon == "firearm") %>%
   #mutating database of victims to database of distinct crimes
-  group_by(crime_date_time, location, district, neighborhood, description, weapon, premise, year, month, date, time_range, during_school, around_lunch, quarter, longitude, latitude) %>%
+  group_by(crime_date_time, location, district, neighborhood, description, race, weapon, premise, year, month, date, time_range, during_or_just_after_school, around_lunch, quarter, longitude, latitude) %>%
   summarise(victims = n(),
             average_age = mean(age, na.rm = TRUE),
             juvenile_victims = sum(age_range == "juvenile")) %>%
@@ -241,6 +250,54 @@ pal <-  mapviewPalette("mapviewSpectralColors")
 
 
 ```
+
+
+census data
+```{r}
+
+black_pop <- get_acs(
+  geography = "tract", 
+  state = "MD",
+  variables = 
+    c(total_population = "B03002_001",
+      black_pop = "B03002_004"),
+  year = 2020,
+  geometry = TRUE,
+  output = "wide"
+  ) %>% 
+  mutate(year=("2020")) %>%
+  clean_names() %>%
+  separate(name, into=c("tract","name","state"), sep=",") %>%
+  mutate(
+      state = str_trim(state,side="both"),
+      name = str_trim(name,side="both")
+  ) %>%
+  filter(name == "Baltimore city")
+
+#pct calc
+black_pct <- black_pop %>%
+  mutate(percent_black = round((black_pop_e/total_population_e) * 100, 2)
+    ) %>%
+  select(geoid, tract, name, state,  percent_black, total_population_e) %>%
+  rename(total_population = total_population_e)
+
+##crosswalk -- these geometries are neighborhoods! we want these
+neighborhood_crosswalk <- read_csv("../shapefiles/census-neighborhood-crosswalk/output/baltimore-neighborhoods-crosswalk.csv") %>%
+  rename(geoid = tract) %>%
+  left_join(neighborhoods) %>%
+  select(-nbrdesc, -color_2, -objectid)
+
+neighborhood_crosswalk$geoid <- as.character(neighborhood_crosswalk$geoid)
+
+## joining race percentages to neighborhoods
+pct_join <- black_pct %>% 
+  left_join(neighborhood_crosswalk, by=c("geoid")) %>% 
+  #distinct(neighborhood, .keep_all = TRUE) %>%
+  select(-geometry.y) %>%
+  rename(geometry = geometry.x)
+
+```
+
 
 ### function 
 ```{r}
@@ -295,19 +352,30 @@ near_school <- shootings %>%
   cbind(near_school$within) %>%
   clean_names() %>%
   filter(near_school_within == TRUE) %>%
-  filter(during_school == "TRUE") %>%
+  filter(during_or_just_after_school == "TRUE") %>%
   filter(juvenile_victims > 0) %>%
   filter(description == "shooting" | 
          description == "homicide") %>%
   filter(weapon == "firearm") %>%
   as.data.frame()
+
+  choropal <- pal
   
-  map <- mapView(school_shape$geometry) +#, alpha.regions = 0, color = "red", lwd = 2, layer.name = "Western District") + 
+  map <- mapView(pct_join,
+            zcol = "percent_black",
+            col.regions = RColorBrewer::brewer.pal(9, "Greens"),
+            alpha.regions = 0.5,
+            #at = seq(0, 100),
+            legend = TRUE) +
+    mapView(school_shape$geometry, color = "blue", lwd = 2) +
+  #alpha.regions = 0, color = "red", lwd = 2, layer.name = "Western District") + 
   mapview(near_school$geometry,
-          cex = near_school$victims*2.5, 
+          cex = near_school$juvenile_victims*2.5, 
           legend = TRUE, 
-          col.regions = pal(100), 
-          layer.name = "Shooting victims")
+          col.regions = "red",
+          lwd = 1,
+          layer.name = "Shooting victims") 
+
   
   map
   
@@ -316,23 +384,53 @@ near_school <- shootings %>%
     #mutate(year_month = mdy(paste0(month, "-1-", year))) %>%
     group_by(year) %>%
     summarise(shootings = n(),
-              victims = sum(victims))
+              juvenile_victims = sum(juvenile_victims),
+              total_victims = sum(victims))
   
   plot <- ggplot(near_school_by_year, aes(x=year, y=shootings)) +
     geom_line() +
     ggtitle(paste0("shootings within ", blocks, " block(s) of 31 high schools during school hours"))
   
+  near_school_by_hour <- near_school %>%
+    mutate(crime_date_time = ymd_hms(crime_date_time))  %>%
+    mutate(year = year(crime_date_time),
+         month = month(crime_date_time),
+         hour = hour(crime_date_time)) %>%
+    group_by(hour) %>%
+    summarize(
+      count = n()
+    )
+  
   print(map)
   print(plot)
-  print(near_school_by_year %>%
-        mutate(blocks = paste0(blocks)) %>%
-        select(blocks, shootings, year) %>%
-        pivot_wider(values_from = shootings, names_from = year))
+  print(near_school)
+  print(near_school_by_year)  #%>%
+  #       mutate(blocks = paste0(blocks)) %>%
+  #       select(blocks, shootings, year) %>%
+  #       pivot_wider(values_from = shootings, names_from = year))
+  print(near_school_by_hour)
 
 }
 
 near_schools(3, final_hs_parcels$geometry[3])
 
+```
+
+## checking between 4 and 6 pm
+```{r}
+
+near_school %>%
+  mutate(crime_date_time = ymd_hms(crime_date_time))  %>%
+  mutate(year = year(crime_date_time),
+         month = month(crime_date_time),
+         hour = hour(crime_date_time)) %>%
+  mutate(bw_4and6 = case_when(
+    hour >= 16 & hour <= 18 ~ TRUE,
+    TRUE ~ FALSE
+  )) %>%
+  filter(bw_4and6 == TRUE)
 
 ```
+
+
 
