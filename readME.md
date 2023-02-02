@@ -4,7 +4,7 @@
 
 Eighteen juveniles in Baltimore have been shot within a block of a city high school between the hours of 7 a.m. and 7 p.m. since 2015. Thirty-five teenagers were shot within a two block radius of a high school and most of those shootings occurred in 2022.
 
-All but one of the shootings in the past seven years occurred near high schools in the Black butterfly, areas of the city with historical disinvestment and segregation. Shootings have been on the rise since the pandemic. 
+All but one of the shootings in the past seven years occurred near high schools in the Black butterfly, areas of the city with historical disinvestment and segregation, and shootings have skyrocketed since the pandemic years. 
 
 ## Methodology 
 
@@ -23,6 +23,10 @@ When counting shootings within an X number of blocks of a shapefile, we counted 
 ## Limitations 
 
 There are known errors in the public Part 1 Crimes Database. The database is also frequently changing. Crimes that were once classified as homicides are often reclassified, making it difficult to recreate mid-year BPD reports at the end of the year. A slight variation is to be expected.
+
+Not every year in the database is reliable. In response to previous questions from The Banner, BPD admitted that shooting data before 2014 should not be relied on. They have never said why. Further analysis has led The Banner to question data in 2014 as well, leaving only the last seven years for analysis.
+
+The geocoded coordinates may not be exact locations. Some shootings may have literally taken place just inside or just outside the ranges where The Banner looked, but have locations in the data that included or excluded them in error.
 
 Data on neighborhood demographic composition is from the 2020 American Community Survey, which may not necessarily be representative of current 2023 demographics. 
 
