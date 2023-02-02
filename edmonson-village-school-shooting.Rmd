@@ -79,12 +79,9 @@ lower_df <- function(input_df){
 
 ```{r}
 
-parcels <- read_sf('/Users/ryanlittle/code/data-library/baltimore/baltimore-shapes/Real_Property_Information/Real_Property_Information.shp')
+parcels <- read_sf('../../no_push_data/Real_Property_Information/Real_Property_Information.shp')
 
-victims <- read_csv('data/Part_1_Crime_Data_.csv') 
-
-
-%>%
+victims <- read_csv('data/Part_1_Crime_Data_.csv') %>%
   #cleaning column names
   clean_names() %>%
   #lowering text in df

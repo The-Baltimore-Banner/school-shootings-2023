@@ -1,0 +1,78 @@
+---
+title: "shootings-leaflet"
+author: "Shreya Vuttaluru"
+date: "2023-02-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+### load libraries
+source("../../../functions/load_libraries_function.R")
+
+### stealing functions 
+
+#does a standard group_by and count() with percentage
+grouper <- function(input_df, group_by_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = n()) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+}
+
+#group/counts every column in input dataframe
+group_count <- function(input_df, group_column_name='n()', state_filter=NA, start_col = 1){
+  column_names <- colnames(input_df)
+  if(!is.na(state_filter)){
+    input_df <- input_df %>%
+      filter(state == state_filter)
+  }
+  for (column in column_names[start_col:length(column_names)]){
+    output <- grouper(input_df, column, group_column_name)
+    print(output)
+  }
+}
+
+grouper_sum <- function(input_df, group_by_column, sum_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = sum(.data[[sum_column]])) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+  
+}
+
+#lowers case of every character column in a dataframe
+lower_df <- function(input_df){
+  names <- colnames(input_df)
+  output_df <- input_df
+  names <- colnames(output_df)
+  for (name in names){
+    if (is.character(output_df[[name]])){
+      output_df[[name]] <- tolower(output_df[[name]])
+      #print('yes')
+    } else {
+      output_df[[name]] <- output_df[[name]]
+      #print('no')
+    }
+  }
+  return(output_df)
+}
+```
+
+### load_data
+
+```{r pressure, echo=FALSE}
+
+clean_parcels <- st_read("clean_parcels.geojson")
+neighborhoods <- st_read("neighborhoods.geojson")
+two_block_shootings <- read_csv("two-block-shootings.csv")
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

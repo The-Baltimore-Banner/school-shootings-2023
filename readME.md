@@ -2,13 +2,13 @@
 
 ## Overview
 
-Fourteen juveniles in Baltimore have been shot within a block of a city high school between the hours of 7 a.m. and 7 p.m. since 2015. Twenty-seven teenagers were shot within a two block radius of a high school and most of those shootings occurred in 2022.
+Eighteen juveniles in Baltimore have been shot within a block of a city high school between the hours of 7 a.m. and 7 p.m. since 2015. Thirty-five teenagers were shot within a two block radius of a high school and most of those shootings occurred in 2022.
 
 All but one of the shootings in the past seven years occurred near high schools in the Black butterfly, areas of the city with historical disinvestment and segregation. Shootings have been on the rise since the pandemic. 
 
 ## Methodology 
 
-This analysis of Open Baltimore Part 1 crime victims database defines shooting victims differently than the Baltimore Police Department. The database defines shooting victims as someone who was shot but was not killed. This analysis includes both those shooting victims and homicide victims who were killed with a firearm.
+This analysis of Open Baltimore Part 1 crime victims database defines shooting victims differently than the Baltimore Police Department. The database defines shooting victims as someone who was shot but was not killed. This analysis includes both those shooting victims and homicide victims who were killed with a firearm. It relies on a version of the Part 1 Crimes Database generated on Feb. 2, 2023. 
 
 This analysis spatially joins school address latitude and longitude coordinates to real property polygons in order to determine the location of school property parcels.
 
