@@ -2,9 +2,9 @@
 
 ## Overview
 
-Eighteen juveniles in Baltimore have been shot within a block of a city high school between the hours of 7 a.m. and 7 p.m. since 2015. Thirty-five teenagers were shot within a two block radius of a high school and most of those shootings occurred in 2022.
+Thirteen shootings have occurred within a block of a city high school between the hours of 7 a.m. and 7 p.m. on school days since 2015, with 18 teenagers being shot. Thirty-one teenagers have been shot within a two block radius of a high school and most of those shootings occurred in 2022.
 
-All but one of the shootings in the past seven years occurred near high schools in the Black butterfly, areas of the city with historical disinvestment and segregation, and shootings have skyrocketed since the pandemic years. 
+Ninety five percent of shootings of teenagers near high schools in the past seven years were in the “Black Butterfly,” a term coined by author Lawrence Brown to describe segregated areas of Baltimore that fan out on a map like butterfly wings.
 
 ## Methodology 
 
@@ -17,6 +17,8 @@ Thirty one high school parcels were included in this analysis, although there ar
 We removed five high schools from our analysis, including virtual schools, vocational “P-Tech” schools and schools that serve juveniles that are incarcerated. 
 
 We include incidents that occurred between 7 am and 7 pm, reasoning that students might still be at school or at after school programs during the hours between 3 and 7 pm, even when school has officially ended. We include 18 year old victims in our definition of juvenile, because some 18 year olds are still in high school. 
+
+Academic years are roughly estimated to be between Sept. 1 and June 15. 
 
 When counting shootings within an X number of blocks of a shapefile, we counted 100 meters for each block in addition to 50 meters for the immediate street. In some parts of the city, this may not a literal block.
 
