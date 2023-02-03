@@ -151,7 +151,7 @@ write_rds(final_hs_parcels, "data/final_hs_parcels.rds")
 
 ```
 
-### code that Ryan wrote earlier to define load in crimes, define shootings and the times they occurred, etc. 
+### Load in crimes, define shootings and times they occurres, set parameters, etc.  
 
 ```{r}
 
