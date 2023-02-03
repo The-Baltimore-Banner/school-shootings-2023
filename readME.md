@@ -2,9 +2,9 @@
 
 ## Overview
 
-Thirteen shootings have occurred within a block of a city high school between the hours of 7 a.m. and 7 p.m. on school days since 2015, with 18 teenagers being shot. Thirty-one teenagers have been shot within a two block radius of a high school and most of those shootings occurred in 2022.
+Thirteen shootings have occurred within a block of a city high school between the hours of 7 a.m. and 7 p.m. on school days since 2015, with 18 teenagers being shot. Ninety four percent of shootings of teenagers near high schools in the past seven years were in the “Black Butterfly."
 
-Ninety five percent of shootings of teenagers near high schools in the past seven years were in the “Black Butterfly,” a term coined by author Lawrence Brown to describe segregated areas of Baltimore that fan out on a map like butterfly wings.
+Here's how we mapped shootings to high schools in Baltimore. 
 
 ## Methodology 
 
